@@ -20,6 +20,7 @@ import {
   DEFAULT_ANNOTATION_SIZE,
   DEFAULT_ANNOTATION_STYLE,
   DEFAULT_FIGURE_DATA,
+  DEFAULT_AUTOZOOM_SETTINGS,
   type ZoomDepth,
   type ZoomFocus,
   type ZoomRegion,
@@ -27,7 +28,9 @@ import {
   type AnnotationRegion,
   type CropRegion,
   type FigureData,
+  type RecordingMetadata,
 } from "./types";
+import { loadRecordingMetadata, generateZoomRegionsFromClicks } from "@/lib/autozoom";
 import { VideoExporter, GifExporter, type ExportProgress, type ExportQuality, type ExportSettings, type ExportFormat, type GifFrameRate, type GifSizePreset, GIF_SIZE_PRESETS, calculateOutputDimensions } from "@/lib/exporter";
 import { type AspectRatio, getAspectRatioValue } from "@/utils/aspectRatioUtils";
 import { getAssetPath } from "@/lib/assetPath";
@@ -65,6 +68,7 @@ export default function VideoEditor() {
   const [gifFrameRate, setGifFrameRate] = useState<GifFrameRate>(15);
   const [gifLoop, setGifLoop] = useState(true);
   const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>('medium');
+  const [recordingMetadata, setRecordingMetadata] = useState<RecordingMetadata | null>(null);
 
   const videoPlaybackRef = useRef<VideoPlaybackRef>(null);
   const nextZoomIdRef = useRef(1);
@@ -93,10 +97,19 @@ export default function VideoEditor() {
     async function loadVideo() {
       try {
         const result = await window.electronAPI.getCurrentVideoPath();
-        
+
         if (result.success && result.path) {
           const videoUrl = toFileUrl(result.path);
           setVideoPath(videoUrl);
+
+          // Try to load recording metadata (click data)
+          const metadata = await loadRecordingMetadata(result.path);
+          if (metadata) {
+            setRecordingMetadata(metadata);
+            if (metadata.clicks.length > 0) {
+              toast.info(`Recording has ${metadata.clicks.length} click${metadata.clicks.length === 1 ? '' : 's'} available for auto-zoom`);
+            }
+          }
         } else {
           setError('No video to load. Please record or select a video.');
         }
@@ -719,6 +732,44 @@ export default function VideoEditor() {
     }
   }, []);
 
+  const handleGenerateAutozoom = useCallback(() => {
+    if (!recordingMetadata || recordingMetadata.clicks.length === 0) {
+      toast.error('No click data available');
+      return;
+    }
+
+    const videoDurationMs = Math.round(duration * 1000);
+    if (videoDurationMs <= 0) {
+      toast.error('Video duration not available');
+      return;
+    }
+
+    const newRegions = generateZoomRegionsFromClicks(
+      recordingMetadata,
+      videoDurationMs,
+      zoomRegions,
+      DEFAULT_AUTOZOOM_SETTINGS
+    );
+
+    if (newRegions.length === 0) {
+      toast.info('No zoom regions generated (clicks may overlap existing zooms)');
+      return;
+    }
+
+    // Update the nextZoomIdRef to avoid conflicts
+    const maxId = Math.max(
+      nextZoomIdRef.current,
+      ...newRegions.map(r => {
+        const match = r.id.match(/zoom-auto-/);
+        return match ? nextZoomIdRef.current : 0;
+      })
+    );
+    nextZoomIdRef.current = maxId + 1;
+
+    setZoomRegions(prev => [...prev, ...newRegions]);
+    toast.success(`Generated ${newRegions.length} zoom region${newRegions.length === 1 ? '' : 's'} from clicks`);
+  }, [recordingMetadata, duration, zoomRegions]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen bg-background">
@@ -831,6 +882,8 @@ export default function VideoEditor() {
               onSelectAnnotation={handleSelectAnnotation}
               aspectRatio={aspectRatio}
               onAspectRatioChange={setAspectRatio}
+              hasClickData={recordingMetadata !== null && recordingMetadata.clicks.length > 0}
+              onGenerateAutozoom={handleGenerateAutozoom}
             />
               </div>
             </Panel>

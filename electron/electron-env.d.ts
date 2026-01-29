@@ -21,6 +21,23 @@ declare namespace NodeJS {
   }
 }
 
+interface ClickEvent {
+  timestampMs: number;
+  x: number;
+  y: number;
+  screenWidth: number;
+  screenHeight: number;
+  button: number;
+}
+
+interface RecordingMetadata {
+  version: number;
+  recordingStartMs: number;
+  clicks: ClickEvent[];
+  sourceId?: string;
+  sourceName?: string;
+}
+
 // Used in Renderer process, expose in `preload.ts`
 interface Window {
   electronAPI: {
@@ -42,6 +59,10 @@ interface Window {
     getPlatform: () => Promise<string>
     hudOverlayHide: () => void;
     hudOverlayClose: () => void;
+    startClickTracking: (sourceId?: string, sourceName?: string) => Promise<{ success: boolean; error?: string }>
+    stopClickTracking: () => Promise<{ success: boolean; metadata?: RecordingMetadata; error?: string }>
+    storeRecordingMetadata: (metadata: RecordingMetadata, fileName: string) => Promise<{ success: boolean; path?: string; message?: string; error?: string }>
+    loadRecordingMetadata: (videoPath: string) => Promise<{ success: boolean; metadata?: RecordingMetadata; path?: string; message?: string; error?: string }>
   }
 }
 

@@ -3,6 +3,7 @@ import { ipcMain, desktopCapturer, BrowserWindow, shell, app, dialog } from 'ele
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { RECORDINGS_DIR } from '../main'
+import { startClickTracking, stopClickTracking, type RecordingMetadata } from '../clickTracker'
 
 let selectedSource: any = null
 
@@ -216,5 +217,74 @@ export function registerIpcHandlers(
 
   ipcMain.handle('get-platform', () => {
     return process.platform;
+  });
+
+  ipcMain.handle('start-click-tracking', (_, sourceId?: string, sourceName?: string) => {
+    try {
+      startClickTracking(sourceId, sourceName);
+      return { success: true };
+    } catch (error) {
+      console.error('Failed to start click tracking:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('stop-click-tracking', () => {
+    try {
+      const metadata = stopClickTracking();
+      return { success: true, metadata };
+    } catch (error) {
+      console.error('Failed to stop click tracking:', error);
+      return { success: false, error: String(error) };
+    }
+  });
+
+  ipcMain.handle('store-recording-metadata', async (_, metadata: RecordingMetadata, fileName: string) => {
+    try {
+      const metadataPath = path.join(RECORDINGS_DIR, fileName);
+      await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+      return {
+        success: true,
+        path: metadataPath,
+        message: 'Metadata stored successfully'
+      };
+    } catch (error) {
+      console.error('Failed to store metadata:', error);
+      return {
+        success: false,
+        message: 'Failed to store metadata',
+        error: String(error)
+      };
+    }
+  });
+
+  ipcMain.handle('load-recording-metadata', async (_, videoPath: string) => {
+    try {
+      // Convert video path to metadata path (.webm -> .meta.json)
+      const metadataPath = videoPath.replace(/\.webm$/, '.meta.json');
+
+      try {
+        await fs.access(metadataPath);
+      } catch {
+        // Metadata file doesn't exist
+        return { success: false, message: 'No metadata file found' };
+      }
+
+      const content = await fs.readFile(metadataPath, 'utf-8');
+      const metadata = JSON.parse(content) as RecordingMetadata;
+
+      return {
+        success: true,
+        metadata,
+        path: metadataPath
+      };
+    } catch (error) {
+      console.error('Failed to load metadata:', error);
+      return {
+        success: false,
+        message: 'Failed to load metadata',
+        error: String(error)
+      };
+    }
   });
 }

@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import { fixWebmDuration } from "@fix-webm-duration/fix";
+import type { RecordingMetadata } from "@/components/video-editor/types";
 
 type UseScreenRecorderReturn = {
   recording: boolean;
@@ -87,6 +88,13 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
         return;
       }
 
+      // Start click tracking before recording
+      try {
+        await window.electronAPI.startClickTracking(selectedSource.id, selectedSource.name);
+      } catch (clickTrackError) {
+        console.warn('Click tracking failed to start (may require accessibility permissions):', clickTrackError);
+      }
+
       const mediaStream = await (navigator.mediaDevices as any).getUserMedia({
         audio: false,
         video: {
@@ -149,6 +157,18 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
         chunks.current = [];
         const timestamp = Date.now();
         const videoFileName = `recording-${timestamp}.webm`;
+        const metadataFileName = `recording-${timestamp}.meta.json`;
+
+        // Stop click tracking and get metadata
+        let clickMetadata: RecordingMetadata | null = null;
+        try {
+          const clickResult = await window.electronAPI.stopClickTracking();
+          if (clickResult.success && clickResult.metadata) {
+            clickMetadata = clickResult.metadata;
+          }
+        } catch (clickError) {
+          console.warn('Failed to stop click tracking:', clickError);
+        }
 
         try {
           const videoBlob = await fixWebmDuration(buggyBlob, duration);
@@ -157,6 +177,16 @@ export function useScreenRecorder(): UseScreenRecorderReturn {
           if (!videoResult.success) {
             console.error('Failed to store video:', videoResult.message);
             return;
+          }
+
+          // Store click metadata if we have any clicks
+          if (clickMetadata && clickMetadata.clicks.length > 0) {
+            try {
+              await window.electronAPI.storeRecordingMetadata(clickMetadata, metadataFileName);
+              console.log(`Stored ${clickMetadata.clicks.length} click events in metadata`);
+            } catch (metaError) {
+              console.warn('Failed to store click metadata:', metaError);
+            }
           }
 
           if (videoResult.path) {

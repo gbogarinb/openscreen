@@ -63,4 +63,16 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getPlatform: () => {
     return ipcRenderer.invoke('get-platform')
   },
+  startClickTracking: (sourceId?: string, sourceName?: string) => {
+    return ipcRenderer.invoke('start-click-tracking', sourceId, sourceName)
+  },
+  stopClickTracking: () => {
+    return ipcRenderer.invoke('stop-click-tracking')
+  },
+  storeRecordingMetadata: (metadata: any, fileName: string) => {
+    return ipcRenderer.invoke('store-recording-metadata', metadata, fileName)
+  },
+  loadRecordingMetadata: (videoPath: string) => {
+    return ipcRenderer.invoke('load-recording-metadata', videoPath)
+  },
 })

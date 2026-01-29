@@ -2,6 +2,7 @@ import { ipcMain, screen, BrowserWindow, desktopCapturer, shell, app, dialog, na
 import { fileURLToPath } from "node:url";
 import path from "node:path";
 import fs from "node:fs/promises";
+import { createRequire } from "node:module";
 const __dirname$1 = path.dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = path.join(__dirname$1, "..");
 const VITE_DEV_SERVER_URL$1 = process.env["VITE_DEV_SERVER_URL"];
@@ -125,6 +126,76 @@ function createSourceSelectorWindow() {
     });
   }
   return win;
+}
+const require2 = createRequire(import.meta.url);
+const { uIOhook } = require2("uiohook-napi");
+let isTracking = false;
+let recordingStartMs = 0;
+let clicks = [];
+let sourceId;
+let sourceName;
+function handleMouseDown(event) {
+  if (!isTracking) return;
+  const primaryDisplay = screen.getPrimaryDisplay();
+  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const clickEvent = {
+    timestampMs: Date.now() - recordingStartMs,
+    x: event.x,
+    y: event.y,
+    screenWidth,
+    screenHeight,
+    button: event.button
+  };
+  clicks.push(clickEvent);
+}
+function startClickTracking(captureSourceId, captureSourceName) {
+  if (isTracking) {
+    console.warn("Click tracking is already active");
+    return;
+  }
+  try {
+    clicks = [];
+    recordingStartMs = Date.now();
+    sourceId = captureSourceId;
+    sourceName = captureSourceName;
+    isTracking = true;
+    uIOhook.on("mousedown", handleMouseDown);
+    uIOhook.start();
+    console.log("Click tracking started");
+  } catch (error) {
+    console.error("Failed to start click tracking:", error);
+    isTracking = false;
+  }
+}
+function stopClickTracking() {
+  if (!isTracking) {
+    console.warn("Click tracking is not active");
+    return {
+      version: 1,
+      recordingStartMs: 0,
+      clicks: []
+    };
+  }
+  try {
+    uIOhook.stop();
+    uIOhook.removeListener("mousedown", handleMouseDown);
+  } catch (error) {
+    console.error("Error stopping uiohook:", error);
+  }
+  isTracking = false;
+  const metadata = {
+    version: 1,
+    recordingStartMs,
+    clicks: [...clicks],
+    sourceId,
+    sourceName
+  };
+  clicks = [];
+  recordingStartMs = 0;
+  sourceId = void 0;
+  sourceName = void 0;
+  console.log(`Click tracking stopped. Captured ${metadata.clicks.length} clicks.`);
+  return metadata;
 }
 let selectedSource = null;
 function registerIpcHandlers(createEditorWindow2, createSourceSelectorWindow2, getMainWindow, getSourceSelectorWindow, onRecordingStateChange) {
@@ -298,6 +369,66 @@ function registerIpcHandlers(createEditorWindow2, createSourceSelectorWindow2, g
   ipcMain.handle("get-platform", () => {
     return process.platform;
   });
+  ipcMain.handle("start-click-tracking", (_, sourceId2, sourceName2) => {
+    try {
+      startClickTracking(sourceId2, sourceName2);
+      return { success: true };
+    } catch (error) {
+      console.error("Failed to start click tracking:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  ipcMain.handle("stop-click-tracking", () => {
+    try {
+      const metadata = stopClickTracking();
+      return { success: true, metadata };
+    } catch (error) {
+      console.error("Failed to stop click tracking:", error);
+      return { success: false, error: String(error) };
+    }
+  });
+  ipcMain.handle("store-recording-metadata", async (_, metadata, fileName) => {
+    try {
+      const metadataPath = path.join(RECORDINGS_DIR, fileName);
+      await fs.writeFile(metadataPath, JSON.stringify(metadata, null, 2));
+      return {
+        success: true,
+        path: metadataPath,
+        message: "Metadata stored successfully"
+      };
+    } catch (error) {
+      console.error("Failed to store metadata:", error);
+      return {
+        success: false,
+        message: "Failed to store metadata",
+        error: String(error)
+      };
+    }
+  });
+  ipcMain.handle("load-recording-metadata", async (_, videoPath) => {
+    try {
+      const metadataPath = videoPath.replace(/\.webm$/, ".meta.json");
+      try {
+        await fs.access(metadataPath);
+      } catch {
+        return { success: false, message: "No metadata file found" };
+      }
+      const content = await fs.readFile(metadataPath, "utf-8");
+      const metadata = JSON.parse(content);
+      return {
+        success: true,
+        metadata,
+        path: metadataPath
+      };
+    } catch (error) {
+      console.error("Failed to load metadata:", error);
+      return {
+        success: false,
+        message: "Failed to load metadata",
+        error: String(error)
+      };
+    }
+  });
 }
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RECORDINGS_DIR = path.join(app.getPath("userData"), "recordings");
@@ -403,8 +534,8 @@ app.whenReady().then(async () => {
     createSourceSelectorWindowWrapper,
     () => mainWindow,
     () => sourceSelectorWindow,
-    (recording, sourceName) => {
-      selectedSourceName = sourceName;
+    (recording, sourceName2) => {
+      selectedSourceName = sourceName2;
       if (!tray) createTray();
       updateTrayMenu(recording);
       if (!recording) {

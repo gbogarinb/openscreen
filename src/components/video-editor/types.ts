@@ -1,5 +1,40 @@
 export type ZoomDepth = 1 | 2 | 3 | 4 | 5 | 6;
 
+export interface ClickEvent {
+  timestampMs: number;
+  x: number;
+  y: number;
+  screenWidth: number;
+  screenHeight: number;
+  button: number;
+}
+
+export interface RecordingMetadata {
+  version: number;
+  recordingStartMs: number;
+  clicks: ClickEvent[];
+  sourceId?: string;
+  sourceName?: string;
+}
+
+export interface AutozoomSettings {
+  zoomDuration: number;
+  leadTime: number;
+  holdTime: number;
+  defaultDepth: ZoomDepth;
+  mergeThreshold: number;
+  ignoreRightClicks: boolean;
+}
+
+export const DEFAULT_AUTOZOOM_SETTINGS: AutozoomSettings = {
+  zoomDuration: 1500,
+  leadTime: 300,
+  holdTime: 500,
+  defaultDepth: 3,
+  mergeThreshold: 500,
+  ignoreRightClicks: true,
+};
+
 export interface ZoomFocus {
   cx: number; // normalized horizontal center (0-1)
   cy: number; // normalized vertical center (0-1)

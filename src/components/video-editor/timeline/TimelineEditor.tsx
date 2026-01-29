@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTimelineContext } from "dnd-timeline";
 import { Button } from "@/components/ui/button";
-import { Plus, Scissors, ZoomIn, MessageSquare, ChevronDown, Check } from "lucide-react";
+import { Plus, Scissors, ZoomIn, MessageSquare, ChevronDown, Check, Wand2 } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import TimelineWrapper from "./TimelineWrapper";
@@ -51,6 +51,8 @@ interface TimelineEditorProps {
   onSelectAnnotation?: (id: string | null) => void;
   aspectRatio: AspectRatio;
   onAspectRatioChange: (aspectRatio: AspectRatio) => void;
+  hasClickData?: boolean;
+  onGenerateAutozoom?: () => void;
 }
 
 interface TimelineScaleConfig {
@@ -510,6 +512,8 @@ export default function TimelineEditor({
   onSelectAnnotation,
   aspectRatio,
   onAspectRatioChange,
+  hasClickData = false,
+  onGenerateAutozoom,
 }: TimelineEditorProps) {
   const totalMs = useMemo(() => Math.max(0, Math.round(videoDuration * 1000)), [videoDuration]);
   const currentTimeMs = useMemo(() => Math.round(currentTime * 1000), [currentTime]);
@@ -882,6 +886,21 @@ export default function TimelineEditor({
           >
             <MessageSquare className="w-4 h-4" />
           </Button>
+          {hasClickData && (
+            <>
+              <div className="w-[1px] h-4 bg-white/10 mx-1" />
+              <Button
+                onClick={onGenerateAutozoom}
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-slate-400 hover:text-[#34B27B] hover:bg-[#34B27B]/10 transition-all gap-1.5"
+                title="Generate zooms from recorded clicks"
+              >
+                <Wand2 className="w-4 h-4" />
+                <span className="text-xs font-medium">Auto Zoom</span>
+              </Button>
+            </>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <DropdownMenu>

@@ -59,5 +59,17 @@ electron.contextBridge.exposeInMainWorld("electronAPI", {
   },
   getPlatform: () => {
     return electron.ipcRenderer.invoke("get-platform");
+  },
+  startClickTracking: (sourceId, sourceName) => {
+    return electron.ipcRenderer.invoke("start-click-tracking", sourceId, sourceName);
+  },
+  stopClickTracking: () => {
+    return electron.ipcRenderer.invoke("stop-click-tracking");
+  },
+  storeRecordingMetadata: (metadata, fileName) => {
+    return electron.ipcRenderer.invoke("store-recording-metadata", metadata, fileName);
+  },
+  loadRecordingMetadata: (videoPath) => {
+    return electron.ipcRenderer.invoke("load-recording-metadata", videoPath);
   }
 });
