@@ -2,7 +2,7 @@ import GIF from 'gif.js';
 import type { ExportProgress, ExportResult, GifFrameRate, GifSizePreset, GIF_SIZE_PRESETS } from './types';
 import { VideoFileDecoder } from './videoDecoder';
 import { FrameRenderer } from './frameRenderer';
-import type { ZoomRegion, CropRegion, TrimRegion, AnnotationRegion } from '@/components/video-editor/types';
+import type { ZoomRegion, CropRegion, TrimRegion, AnnotationRegion, CursorPosition } from '@/components/video-editor/types';
 
 const GIF_WORKER_URL = new URL('gif.js/dist/gif.worker.js', import.meta.url).toString();
 
@@ -27,6 +27,9 @@ interface GifExporterConfig {
   annotationRegions?: AnnotationRegion[];
   previewWidth?: number;
   previewHeight?: number;
+  cursorEnabled?: boolean;
+  cursorPositions?: CursorPosition[];
+  backgroundEnabled?: boolean;
   onProgress?: (progress: ExportProgress) => void;
 }
 
@@ -137,6 +140,9 @@ export class GifExporter {
         annotationRegions: this.config.annotationRegions,
         previewWidth: this.config.previewWidth,
         previewHeight: this.config.previewHeight,
+        cursorEnabled: this.config.cursorEnabled,
+        cursorPositions: this.config.cursorPositions,
+        backgroundEnabled: this.config.backgroundEnabled,
       });
       await this.renderer.initialize();
 

@@ -1,11 +1,12 @@
 import { Application, Container, Sprite, Graphics, BlurFilter, Texture } from 'pixi.js';
-import type { ZoomRegion, CropRegion, AnnotationRegion } from '@/components/video-editor/types';
+import type { ZoomRegion, CropRegion, AnnotationRegion, CursorPosition } from '@/components/video-editor/types';
 import { ZOOM_DEPTH_SCALES } from '@/components/video-editor/types';
 import { findDominantRegion } from '@/components/video-editor/videoPlayback/zoomRegionUtils';
 import { applyZoomTransform } from '@/components/video-editor/videoPlayback/zoomTransform';
 import { DEFAULT_FOCUS, SMOOTHING_FACTOR, MIN_DELTA } from '@/components/video-editor/videoPlayback/constants';
 import { clampFocusToStage as clampFocusToStageUtil } from '@/components/video-editor/videoPlayback/focusUtils';
 import { renderAnnotations } from './annotationRenderer';
+import { renderCursor } from './cursorRenderer';
 
 interface FrameRenderConfig {
   width: number;
@@ -24,6 +25,9 @@ interface FrameRenderConfig {
   annotationRegions?: AnnotationRegion[];
   previewWidth?: number;
   previewHeight?: number;
+  cursorEnabled?: boolean;
+  cursorPositions?: CursorPosition[];
+  backgroundEnabled?: boolean;
 }
 
 interface AnimationState {
@@ -320,13 +324,26 @@ export class FrameRenderer {
         scaleFactor
       );
     }
+
+    // Render cursor on top if enabled
+    if (this.config.cursorEnabled && this.config.cursorPositions && this.config.cursorPositions.length > 0 && this.compositeCtx) {
+      renderCursor(this.compositeCtx, {
+        cursorPositions: this.config.cursorPositions,
+        canvasWidth: this.config.width,
+        canvasHeight: this.config.height,
+        currentTimeMs: timeMs,
+      });
+    }
   }
 
   private updateLayout(): void {
     if (!this.app || !this.videoSprite || !this.maskGraphics || !this.videoContainer) return;
 
     const { width, height } = this.config;
-    const { cropRegion, borderRadius = 0, padding = 0 } = this.config;
+    const { cropRegion, borderRadius: configBorderRadius = 0, padding: configPadding = 0, backgroundEnabled = true } = this.config;
+    // When background is disabled, use 0 padding and 0 border radius for full screen video
+    const borderRadius = backgroundEnabled ? configBorderRadius : 0;
+    const padding = backgroundEnabled ? configPadding : 0;
     const videoWidth = this.config.videoWidth;
     const videoHeight = this.config.videoHeight;
 
@@ -458,14 +475,15 @@ export class FrameRenderer {
     const ctx = this.compositeCtx;
     const w = this.compositeCanvas.width;
     const h = this.compositeCanvas.height;
+    const backgroundEnabled = this.config.backgroundEnabled ?? true;
 
     // Clear composite canvas
     ctx.clearRect(0, 0, w, h);
 
-    // Step 1: Draw background layer (with optional blur, not affected by zoom)
-    if (this.backgroundSprite) {
+    // Step 1: Draw background layer (only when background is enabled)
+    if (backgroundEnabled && this.backgroundSprite) {
       const bgCanvas = this.backgroundSprite as any as HTMLCanvasElement;
-      
+
       if (this.config.showBlur) {
         ctx.save();
         ctx.filter = 'blur(6px)'; // Canvas blur is weaker than CSS
@@ -474,12 +492,10 @@ export class FrameRenderer {
       } else {
         ctx.drawImage(bgCanvas, 0, 0, w, h);
       }
-    } else {
-      console.warn('[FrameRenderer] No background sprite found during compositing!');
     }
 
-    // Draw video layer with shadows on top of background
-    if (this.config.showShadow && this.config.shadowIntensity > 0 && this.shadowCanvas && this.shadowCtx) {
+    // Draw video layer with shadows on top of background (only when background is enabled)
+    if (backgroundEnabled && this.config.showShadow && this.config.shadowIntensity > 0 && this.shadowCanvas && this.shadowCtx) {
       const shadowCtx = this.shadowCtx;
       shadowCtx.clearRect(0, 0, w, h);
       shadowCtx.save();

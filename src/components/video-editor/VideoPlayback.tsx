@@ -2,7 +2,7 @@ import type React from "react";
 import { useEffect, useRef, useImperativeHandle, forwardRef, useState, useMemo, useCallback } from "react";
 import { getAssetPath } from "@/lib/assetPath";
 import { Application, Container, Sprite, Graphics, BlurFilter, Texture, VideoSource } from 'pixi.js';
-import { ZOOM_DEPTH_SCALES, type ZoomRegion, type ZoomFocus, type ZoomDepth, type TrimRegion, type AnnotationRegion } from "./types";
+import { ZOOM_DEPTH_SCALES, type ZoomRegion, type ZoomFocus, type ZoomDepth, type TrimRegion, type AnnotationRegion, type CursorPosition } from "./types";
 import { DEFAULT_FOCUS, SMOOTHING_FACTOR, MIN_DELTA } from "./videoPlayback/constants";
 import { clamp01 } from "./videoPlayback/mathUtils";
 import { findDominantRegion } from "./videoPlayback/zoomRegionUtils";
@@ -13,6 +13,7 @@ import { applyZoomTransform } from "./videoPlayback/zoomTransform";
 import { createVideoEventHandlers } from "./videoPlayback/videoEventHandlers";
 import { type AspectRatio, formatAspectRatioForCSS } from "@/utils/aspectRatioUtils";
 import { AnnotationOverlay } from "./AnnotationOverlay";
+import { CursorOverlay } from "./CursorOverlay";
 
 interface VideoPlaybackProps {
   videoPath: string;
@@ -41,6 +42,11 @@ interface VideoPlaybackProps {
   onSelectAnnotation?: (id: string | null) => void;
   onAnnotationPositionChange?: (id: string, position: { x: number; y: number }) => void;
   onAnnotationSizeChange?: (id: string, size: { width: number; height: number }) => void;
+  cursorEnabled?: boolean;
+  cursorOffsetX?: number;
+  cursorOffsetY?: number;
+  cursorPositions?: CursorPosition[];
+  backgroundEnabled?: boolean;
 }
 
 export interface VideoPlaybackRef {
@@ -80,6 +86,11 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(({
   onSelectAnnotation,
   onAnnotationPositionChange,
   onAnnotationSizeChange,
+  cursorEnabled = false,
+  cursorOffsetX = 0,
+  cursorOffsetY = 0,
+  cursorPositions = [],
+  backgroundEnabled = true,
 }, ref) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
@@ -164,6 +175,10 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(({
       };
     }
 
+    // When background is disabled, use 0 padding and 0 border radius for full screen video
+    const effectivePadding = backgroundEnabled ? padding : 0;
+    const effectiveBorderRadius = backgroundEnabled ? borderRadius : 0;
+
     const result = layoutVideoContentUtil({
       container,
       app,
@@ -172,8 +187,8 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(({
       videoElement,
       cropRegion,
       lockedVideoDimensions: lockedVideoDimensionsRef.current,
-      borderRadius,
-      padding,
+      borderRadius: effectiveBorderRadius,
+      padding: effectivePadding,
     });
 
     if (result) {
@@ -195,7 +210,7 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(({
 
       updateOverlayForRegion(activeRegion);
     }
-  }, [updateOverlayForRegion, cropRegion, borderRadius, padding]);
+  }, [updateOverlayForRegion, cropRegion, borderRadius, padding, backgroundEnabled]);
 
   useEffect(() => {
     layoutVideoContentRef.current = layoutVideoContent;
@@ -790,19 +805,21 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(({
 
   return (
     <div className="relative rounded-sm overflow-hidden" style={{ width: '100%', aspectRatio: formatAspectRatioForCSS(aspectRatio) }}>
-      {/* Background layer - always render as DOM element with blur */}
-      <div
-        className="absolute inset-0 bg-cover bg-center"
-        style={{
-          ...backgroundStyle,
-          filter: showBlur ? 'blur(2px)' : 'none',
-        }}
-      />
+      {/* Background layer - only render when background is enabled */}
+      {backgroundEnabled && (
+        <div
+          className="absolute inset-0 bg-cover bg-center"
+          style={{
+            ...backgroundStyle,
+            filter: showBlur ? 'blur(2px)' : 'none',
+          }}
+        />
+      )}
       <div
         ref={containerRef}
         className="absolute inset-0"
         style={{
-          filter: (showShadow && shadowIntensity > 0)
+          filter: (backgroundEnabled && showShadow && shadowIntensity > 0)
             ? `drop-shadow(0 ${shadowIntensity * 12}px ${shadowIntensity * 48}px rgba(0,0,0,${shadowIntensity * 0.7})) drop-shadow(0 ${shadowIntensity * 4}px ${shadowIntensity * 16}px rgba(0,0,0,${shadowIntensity * 0.5})) drop-shadow(0 ${shadowIntensity * 2}px ${shadowIntensity * 8}px rgba(0,0,0,${shadowIntensity * 0.3}))`
             : 'none',
         }}
@@ -867,6 +884,15 @@ const VideoPlayback = forwardRef<VideoPlaybackRef, VideoPlaybackProps>(({
               />
             ));
           })()}
+          {cursorEnabled && cursorPositions.length > 0 && (
+            <CursorOverlay
+              cursorPositions={cursorPositions}
+              currentTimeMs={Math.round(currentTime * 1000)}
+              videoBounds={baseMaskRef.current}
+              offsetX={cursorOffsetX}
+              offsetY={cursorOffsetY}
+            />
+          )}
         </div>
       )}
       <video

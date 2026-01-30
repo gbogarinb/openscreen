@@ -9,10 +9,19 @@ export interface ClickEvent {
   button: number;
 }
 
+export interface CursorPosition {
+  timestampMs: number;
+  x: number;
+  y: number;
+  screenWidth: number;
+  screenHeight: number;
+}
+
 export interface RecordingMetadata {
   version: number;
   recordingStartMs: number;
   clicks: ClickEvent[];
+  cursorPositions?: CursorPosition[];
   sourceId?: string;
   sourceName?: string;
 }

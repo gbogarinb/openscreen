@@ -2,7 +2,7 @@ import type { ExportConfig, ExportProgress, ExportResult } from './types';
 import { VideoFileDecoder } from './videoDecoder';
 import { FrameRenderer } from './frameRenderer';
 import { VideoMuxer } from './muxer';
-import type { ZoomRegion, CropRegion, TrimRegion, AnnotationRegion } from '@/components/video-editor/types';
+import type { ZoomRegion, CropRegion, TrimRegion, AnnotationRegion, CursorPosition } from '@/components/video-editor/types';
 
 interface VideoExporterConfig extends ExportConfig {
   videoUrl: string;
@@ -20,6 +20,9 @@ interface VideoExporterConfig extends ExportConfig {
   annotationRegions?: AnnotationRegion[];
   previewWidth?: number;
   previewHeight?: number;
+  cursorEnabled?: boolean;
+  cursorPositions?: CursorPosition[];
+  backgroundEnabled?: boolean;
   onProgress?: (progress: ExportProgress) => void;
 }
 
@@ -100,6 +103,9 @@ export class VideoExporter {
         annotationRegions: this.config.annotationRegions,
         previewWidth: this.config.previewWidth,
         previewHeight: this.config.previewHeight,
+        cursorEnabled: this.config.cursorEnabled,
+        cursorPositions: this.config.cursorPositions,
+        backgroundEnabled: this.config.backgroundEnabled,
       });
       await this.renderer.initialize();
 

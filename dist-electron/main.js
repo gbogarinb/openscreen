@@ -132,21 +132,46 @@ const { uIOhook } = require2("uiohook-napi");
 let isTracking = false;
 let recordingStartMs = 0;
 let clicks = [];
+let cursorPositions = [];
 let sourceId;
 let sourceName;
+let lastCursorPosition = null;
+let cursorTrackingInterval = null;
+const CURSOR_TRACKING_INTERVAL_MS = 33;
 function handleMouseDown(event) {
   if (!isTracking) return;
-  const primaryDisplay = screen.getPrimaryDisplay();
-  const { width: screenWidth, height: screenHeight } = primaryDisplay.workAreaSize;
+  const clickDisplay = screen.getDisplayNearestPoint({ x: event.x, y: event.y });
+  const { bounds } = clickDisplay;
+  const relativeX = event.x - bounds.x;
+  const relativeY = event.y - bounds.y;
   const clickEvent = {
     timestampMs: Date.now() - recordingStartMs,
-    x: event.x,
-    y: event.y,
-    screenWidth,
-    screenHeight,
+    x: relativeX,
+    y: relativeY,
+    screenWidth: bounds.width,
+    screenHeight: bounds.height,
     button: event.button
   };
   clicks.push(clickEvent);
+}
+function handleMouseMove(event) {
+  if (!isTracking) return;
+  lastCursorPosition = { x: event.x, y: event.y };
+}
+function recordCursorPosition() {
+  if (!isTracking || !lastCursorPosition) return;
+  const cursorDisplay = screen.getDisplayNearestPoint(lastCursorPosition);
+  const { bounds } = cursorDisplay;
+  const relativeX = lastCursorPosition.x - bounds.x;
+  const relativeY = lastCursorPosition.y - bounds.y;
+  const position = {
+    timestampMs: Date.now() - recordingStartMs,
+    x: relativeX,
+    y: relativeY,
+    screenWidth: bounds.width,
+    screenHeight: bounds.height
+  };
+  cursorPositions.push(position);
 }
 function startClickTracking(captureSourceId, captureSourceName) {
   if (isTracking) {
@@ -155,12 +180,16 @@ function startClickTracking(captureSourceId, captureSourceName) {
   }
   try {
     clicks = [];
+    cursorPositions = [];
+    lastCursorPosition = null;
     recordingStartMs = Date.now();
     sourceId = captureSourceId;
     sourceName = captureSourceName;
     isTracking = true;
     uIOhook.on("mousedown", handleMouseDown);
+    uIOhook.on("mousemove", handleMouseMove);
     uIOhook.start();
+    cursorTrackingInterval = setInterval(recordCursorPosition, CURSOR_TRACKING_INTERVAL_MS);
     console.log("Click tracking started");
   } catch (error) {
     console.error("Failed to start click tracking:", error);
@@ -168,17 +197,24 @@ function startClickTracking(captureSourceId, captureSourceName) {
   }
 }
 function stopClickTracking() {
+  var _a;
   if (!isTracking) {
     console.warn("Click tracking is not active");
     return {
       version: 1,
       recordingStartMs: 0,
-      clicks: []
+      clicks: [],
+      cursorPositions: []
     };
+  }
+  if (cursorTrackingInterval) {
+    clearInterval(cursorTrackingInterval);
+    cursorTrackingInterval = null;
   }
   try {
     uIOhook.stop();
     uIOhook.removeListener("mousedown", handleMouseDown);
+    uIOhook.removeListener("mousemove", handleMouseMove);
   } catch (error) {
     console.error("Error stopping uiohook:", error);
   }
@@ -187,14 +223,17 @@ function stopClickTracking() {
     version: 1,
     recordingStartMs,
     clicks: [...clicks],
+    cursorPositions: [...cursorPositions],
     sourceId,
     sourceName
   };
   clicks = [];
+  cursorPositions = [];
+  lastCursorPosition = null;
   recordingStartMs = 0;
   sourceId = void 0;
   sourceName = void 0;
-  console.log(`Click tracking stopped. Captured ${metadata.clicks.length} clicks.`);
+  console.log(`Click tracking stopped. Captured ${metadata.clicks.length} clicks and ${((_a = metadata.cursorPositions) == null ? void 0 : _a.length) || 0} cursor positions.`);
   return metadata;
 }
 let selectedSource = null;

@@ -69,6 +69,10 @@ export default function VideoEditor() {
   const [gifLoop, setGifLoop] = useState(true);
   const [gifSizePreset, setGifSizePreset] = useState<GifSizePreset>('medium');
   const [recordingMetadata, setRecordingMetadata] = useState<RecordingMetadata | null>(null);
+  const [cursorEnabled, setCursorEnabled] = useState(false);
+  const [cursorOffsetX, setCursorOffsetX] = useState(0);
+  const [cursorOffsetY, setCursorOffsetY] = useState(0);
+  const [backgroundEnabled, setBackgroundEnabled] = useState(true);
 
   const videoPlaybackRef = useRef<VideoPlaybackRef>(null);
   const nextZoomIdRef = useRef(1);
@@ -106,8 +110,15 @@ export default function VideoEditor() {
           const metadata = await loadRecordingMetadata(result.path);
           if (metadata) {
             setRecordingMetadata(metadata);
-            if (metadata.clicks.length > 0) {
-              toast.info(`Recording has ${metadata.clicks.length} click${metadata.clicks.length === 1 ? '' : 's'} available for auto-zoom`);
+            if (metadata.clicks.length > 0 || (metadata.cursorPositions && metadata.cursorPositions.length > 0)) {
+              const clickCount = metadata.clicks.length;
+              const cursorCount = metadata.cursorPositions?.length || 0;
+              if (clickCount > 0) {
+                toast.info(`Recording has ${clickCount} click${clickCount === 1 ? '' : 's'} for auto-zoom`);
+              }
+              if (cursorCount > 0) {
+                toast.info(`Recording has ${cursorCount} cursor positions for cursor overlay`);
+              }
             }
           }
         } else {
@@ -549,6 +560,9 @@ export default function VideoEditor() {
           annotationRegions,
           previewWidth,
           previewHeight,
+          cursorEnabled,
+          cursorPositions: recordingMetadata?.cursorPositions || [],
+          backgroundEnabled,
           onProgress: (progress: ExportProgress) => {
             setExportProgress(progress);
           },
@@ -674,6 +688,9 @@ export default function VideoEditor() {
           annotationRegions,
           previewWidth,
           previewHeight,
+          cursorEnabled,
+          cursorPositions: recordingMetadata?.cursorPositions || [],
+          backgroundEnabled,
           onProgress: (progress: ExportProgress) => {
             setExportProgress(progress);
           },
@@ -719,7 +736,7 @@ export default function VideoEditor() {
       setShowExportDialog(false);
       setExportProgress(null);
     }
-  }, [videoPath, wallpaper, zoomRegions, trimRegions, shadowIntensity, showBlur, motionBlurEnabled, borderRadius, padding, cropRegion, annotationRegions, isPlaying, aspectRatio, exportQuality]);
+  }, [videoPath, wallpaper, zoomRegions, trimRegions, shadowIntensity, showBlur, motionBlurEnabled, borderRadius, padding, cropRegion, annotationRegions, isPlaying, aspectRatio, exportQuality, cursorEnabled, recordingMetadata?.clicks, backgroundEnabled]);
 
   const handleCancelExport = useCallback(() => {
     if (exporterRef.current) {
@@ -833,6 +850,11 @@ export default function VideoEditor() {
                       onSelectAnnotation={handleSelectAnnotation}
                       onAnnotationPositionChange={handleAnnotationPositionChange}
                       onAnnotationSizeChange={handleAnnotationSizeChange}
+                      cursorEnabled={cursorEnabled}
+                      cursorOffsetX={cursorOffsetX}
+                      cursorOffsetY={cursorOffsetY}
+                      cursorPositions={recordingMetadata?.cursorPositions || []}
+                      backgroundEnabled={backgroundEnabled}
                     />
                   </div>
                 </div>
@@ -882,7 +904,7 @@ export default function VideoEditor() {
               onSelectAnnotation={handleSelectAnnotation}
               aspectRatio={aspectRatio}
               onAspectRatioChange={setAspectRatio}
-              hasClickData={recordingMetadata !== null && recordingMetadata.clicks.length > 0}
+              hasClickData={recordingMetadata !== null && (recordingMetadata.clicks.length > 0 || (recordingMetadata.cursorPositions?.length || 0) > 0)}
               onGenerateAutozoom={handleGenerateAutozoom}
             />
               </div>
@@ -938,6 +960,15 @@ export default function VideoEditor() {
           onAnnotationStyleChange={handleAnnotationStyleChange}
           onAnnotationFigureDataChange={handleAnnotationFigureDataChange}
           onAnnotationDelete={handleAnnotationDelete}
+          cursorEnabled={cursorEnabled}
+          onCursorEnabledChange={setCursorEnabled}
+          cursorOffsetX={cursorOffsetX}
+          onCursorOffsetXChange={setCursorOffsetX}
+          cursorOffsetY={cursorOffsetY}
+          onCursorOffsetYChange={setCursorOffsetY}
+          hasClickData={recordingMetadata !== null && (recordingMetadata.clicks.length > 0 || (recordingMetadata.cursorPositions?.length || 0) > 0)}
+          backgroundEnabled={backgroundEnabled}
+          onBackgroundEnabledChange={setBackgroundEnabled}
         />
       </div>
 

@@ -90,6 +90,17 @@ interface SettingsPanelProps {
   onAnnotationStyleChange?: (id: string, style: Partial<AnnotationRegion['style']>) => void;
   onAnnotationFigureDataChange?: (id: string, figureData: any) => void;
   onAnnotationDelete?: (id: string) => void;
+  // Cursor settings
+  cursorEnabled?: boolean;
+  onCursorEnabledChange?: (enabled: boolean) => void;
+  cursorOffsetX?: number;
+  onCursorOffsetXChange?: (offset: number) => void;
+  cursorOffsetY?: number;
+  onCursorOffsetYChange?: (offset: number) => void;
+  hasClickData?: boolean;
+  // Background settings
+  backgroundEnabled?: boolean;
+  onBackgroundEnabledChange?: (enabled: boolean) => void;
 }
 
 export default SettingsPanel;
@@ -145,6 +156,15 @@ export function SettingsPanel({
   onAnnotationStyleChange,
   onAnnotationFigureDataChange,
   onAnnotationDelete,
+  cursorEnabled = false,
+  onCursorEnabledChange,
+  cursorOffsetX = 0,
+  onCursorOffsetXChange,
+  cursorOffsetY = 0,
+  onCursorOffsetYChange,
+  hasClickData = false,
+  backgroundEnabled = true,
+  onBackgroundEnabledChange,
 }: SettingsPanelProps) {
   const [wallpaperPaths, setWallpaperPaths] = useState<string[]>([]);
   const [customImages, setCustomImages] = useState<string[]>([]);
@@ -347,6 +367,60 @@ export function SettingsPanel({
                     className="data-[state=checked]:bg-[#34B27B] scale-90"
                   />
                 </div>
+                <div
+                  className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5"
+                  title={!hasClickData ? "No click data available for this recording" : undefined}
+                >
+                  <div className={cn("text-[10px] font-medium", hasClickData ? "text-slate-300" : "text-slate-500")}>
+                    Show Cursor
+                  </div>
+                  <Switch
+                    checked={cursorEnabled}
+                    onCheckedChange={onCursorEnabledChange}
+                    disabled={!hasClickData}
+                    className="data-[state=checked]:bg-[#34B27B] scale-90 disabled:opacity-50"
+                  />
+                </div>
+                {cursorEnabled && hasClickData && (
+                  <>
+                    <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+                      <div className="flex items-center gap-1 mb-2">
+                        <Bug className="w-3 h-3 text-amber-500" />
+                        <span className="text-[10px] font-medium text-amber-400">Cursor Offset Debug</span>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-slate-400">X Offset</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{cursorOffsetX}px</span>
+                          </div>
+                          <Slider
+                            value={[cursorOffsetX]}
+                            onValueChange={(values) => onCursorOffsetXChange?.(values[0])}
+                            min={-50}
+                            max={20}
+                            step={0.5}
+                            className="w-full [&_[role=slider]]:bg-amber-500 [&_[role=slider]]:border-amber-500 [&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] text-slate-400">Y Offset</span>
+                            <span className="text-[10px] text-slate-500 font-mono">{cursorOffsetY}px</span>
+                          </div>
+                          <Slider
+                            value={[cursorOffsetY]}
+                            onValueChange={(values) => onCursorOffsetYChange?.(values[0])}
+                            min={-20}
+                            max={20}
+                            step={0.5}
+                            className="w-full [&_[role=slider]]:bg-amber-500 [&_[role=slider]]:border-amber-500 [&_[role=slider]]:h-3 [&_[role=slider]]:w-3"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </div>
               
               <div className="grid grid-cols-2 gap-2">
@@ -413,7 +487,15 @@ export function SettingsPanel({
               </div>
             </AccordionTrigger>
             <AccordionContent className="pb-3">
-              <Tabs defaultValue="image" className="w-full">
+              <div className="flex items-center justify-between p-2 rounded-lg bg-white/5 border border-white/5 mb-2">
+                <div className="text-[10px] font-medium text-slate-300">Show Background</div>
+                <Switch
+                  checked={backgroundEnabled}
+                  onCheckedChange={onBackgroundEnabledChange}
+                  className="data-[state=checked]:bg-[#34B27B] scale-90"
+                />
+              </div>
+              <Tabs defaultValue="image" className={cn("w-full", !backgroundEnabled && "opacity-50 pointer-events-none")}>
                 <TabsList className="mb-2 bg-white/5 border border-white/5 p-0.5 w-full grid grid-cols-3 h-7 rounded-lg">
                   <TabsTrigger value="image" className="data-[state=active]:bg-[#34B27B] data-[state=active]:text-white text-slate-400 text-[10px] py-1 rounded-md transition-all">Image</TabsTrigger>
                   <TabsTrigger value="color" className="data-[state=active]:bg-[#34B27B] data-[state=active]:text-white text-slate-400 text-[10px] py-1 rounded-md transition-all">Color</TabsTrigger>
